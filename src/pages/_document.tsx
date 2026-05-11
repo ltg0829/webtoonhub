@@ -4,12 +4,7 @@ export default function Document() {
   return (
     <Html lang="ko">
       <Head>
-        <meta charSet="utf-8" />
         <meta name="description" content="모든 웹툰 플랫폼을 하나에서 — 웹툰허브" />
-        <meta property="og:title" content="웹툰허브" />
-        <meta property="og:description" content="네이버·카카오·레진 등 모든 플랫폼 웹툰을 한 곳에서 탐색하세요" />
-        <meta property="og:type" content="website" />
-        <link rel="icon" href="/favicon.ico" />
       </Head>
       <body>
         <Main />

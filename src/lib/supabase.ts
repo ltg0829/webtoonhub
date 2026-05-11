@@ -1,11 +1,10 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// ── 타입 정의 ─────────────────────────────────────
 export type Work = {
   id: number
   title: string
@@ -51,7 +50,6 @@ export type Profile = {
   is_admin: boolean
 }
 
-// ── 플랫폼 색상 매핑 ─────────────────────────────
 export const PLATFORM_COLORS: Record<string, string> = {
   '네이버': '#03c75a', '네이버웹툰': '#03c75a',
   '카카오페이지': '#c8a900', '카카오': '#c8a900',
@@ -60,7 +58,6 @@ export const PLATFORM_COLORS: Record<string, string> = {
   '탑툰': '#ff6b35', '봄툰': '#9b59b6',
 }
 
-// ── 장르 이모지 매핑 ─────────────────────────────
 export const GENRE_EMOJI: Record<string, { emoji: string; bg: string }> = {
   '판타지': { emoji: '⚔️', bg: '#121a20' },
   '무협':   { emoji: '🗡️', bg: '#0f1a10' },
@@ -74,10 +71,9 @@ export const GENRE_EMOJI: Record<string, { emoji: string; bg: string }> = {
   '힐링':   { emoji: '🌿', bg: '#0a1810' },
   '미스터리': { emoji: '🔍', bg: '#0d0d1a' },
 }
-export const DEFAULT_GENRE = { emoji: '📖', bg: '#14141e' }
 
 export function getGenreInfo(genre: string | null) {
-  if (!genre) return DEFAULT_GENRE
+  if (!genre) return { emoji: '📖', bg: '#14141e' }
   const key = Object.keys(GENRE_EMOJI).find(k => genre.includes(k))
-  return key ? GENRE_EMOJI[key] : DEFAULT_GENRE
+  return key ? GENRE_EMOJI[key] : { emoji: '📖', bg: '#14141e' }
 }
