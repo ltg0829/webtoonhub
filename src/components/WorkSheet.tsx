@@ -94,7 +94,6 @@ export default function WorkSheet({ work, userId, nickname, onClose }: Props) {
     btnDanger: { fontSize:10, padding:'3px 8px', borderRadius:4, border:'0.5px solid #e24b4a', background:'transparent', color:'#e24b4a', cursor:'pointer' },
     textarea: { width:'100%', background:'#16161f', border:'0.5px solid #2a2a3a', borderRadius:7, padding:'9px 11px', color:'#f0ede6', fontSize:13, outline:'none', resize:'none' as const, lineHeight:'1.6', display:'block' },
     nudge: { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'11px 13px', background:'#1e1e2a', borderRadius:9, border:'0.5px solid #2a2a3a', marginBottom:12 },
-    tabBtn: (active: boolean): React.CSSProperties => ({ fontSize:12, padding:'5px 12px', borderRadius:6, border: active?'0.5px solid #e8c84b':'0.5px solid #2a2a3a', background: active?'#e8c84b':'transparent', color: active?'#000':'#7a7a8c', cursor:'pointer', fontWeight: active?600:400 }),
   }
 
   return (
@@ -160,10 +159,16 @@ export default function WorkSheet({ work, userId, nickname, onClose }: Props) {
         )}
 
         {/* 탭 */}
-        <div style={{ display:'flex', gap:6, marginBottom:12 }}>
-          <button style={s.tabBtn(tab==='review')} onClick={()=>setTab('review')}>리뷰 {reviews.length}</button>
-          <button style={s.tabBtn(tab==='comment')} onClick={()=>setTab('comment')}>댓글 {comments.reduce((a,c)=>a+1+(c.replies?.length||0),0)}</button>
-        </div>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                  {(['review', 'comment'] as const).map(t => {
+                      const active = tab === t
+                      return (
+                          <button key={t} onClick={() => setTab(t)} style={{ fontSize: 12, padding: '5px 12px', borderRadius: 6, border: active ? '0.5px solid #e8c84b' : '0.5px solid #2a2a3a', background: active ? '#e8c84b' : 'transparent', color: active ? '#000' : '#7a7a8c', cursor: 'pointer', fontWeight: active ? 600 : 400 }}>
+                              {t === 'review' ? `리뷰 ${reviews.length}` : `댓글 ${comments.reduce((a, c) => a + 1 + (c.replies?.length || 0), 0)}`}
+                          </button>
+                      )
+                  })}
+              </div>
 
         {/* 리뷰 탭 */}
         {tab==='review'&&(
