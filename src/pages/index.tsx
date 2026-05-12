@@ -4,39 +4,27 @@ import { supabase, Work, PLATFORM_COLORS, getGenreInfo } from '@/lib/supabase'
 
 const DAYS = ['전체', '월', '화', '수', '목', '금', '토', '일']
 
-function ss(n: number, t = 5) {
-  return Array.from({ length: t }, (_, i) => i < Math.round(n) ? '★' : '☆').join('')
+function getPlatColor(p: string) {
+  return PLATFORM_COLORS[p] || '#888'
 }
 
-function getPlatColor(platform: string) {
-  return PLATFORM_COLORS[platform] || '#7a7a8c'
-}
-
-function getPlatBadgeStyle(platform: string): React.CSSProperties {
-  const colorMap: Record<string, { bg: string; color: string }> = {
-    '네이버':     { bg: 'rgba(3,199,90,.15)',   color: '#03c75a' },
-    '네이버웹툰': { bg: 'rgba(3,199,90,.15)',   color: '#03c75a' },
-    '카카오페이지':{ bg: 'rgba(200,169,0,.15)', color: '#c8a900' },
-    '카카오':     { bg: 'rgba(200,169,0,.15)',  color: '#c8a900' },
-    '레진':       { bg: 'rgba(228,0,89,.12)',   color: '#e40059' },
-    '레진코믹스': { bg: 'rgba(228,0,89,.12)',   color: '#e40059' },
-    '리디':       { bg: 'rgba(31,140,230,.12)', color: '#1f8ce6' },
-    '탑툰':       { bg: 'rgba(255,107,53,.12)', color: '#ff6b35' },
-    '봄툰':       { bg: 'rgba(155,89,182,.12)', color: '#9b59b6' },
-  }
-  const c = colorMap[platform] || { bg: 'rgba(255,255,255,.08)', color: '#7a7a8c' }
-  return { fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 600, background: c.bg, color: c.color }
+function getPlatIcon(p: string) {
+  if (p.includes('네이버')) return 'N'
+  if (p.includes('카카오')) return 'K'
+  if (p.includes('레진')) return 'L'
+  if (p.includes('리디')) return 'R'
+  if (p.includes('탑툰')) return 'T'
+  return p[0]
 }
 
 export default function Home() {
-  const [works, setWorks]       = useState<Work[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [selWork, setSelWork]   = useState<Work | null>(null)
-  const [q, setQ]               = useState('')
-  const [selPlat, setSelPlat]   = useState('all')
-  const [selDay, setSelDay]     = useState('전체')
-  const [filterEnd, setFilterEnd] = useState(false)
-  const [filterOn, setFilterOn]   = useState(false)
+  const [works, setWorks]         = useState<Work[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [selWork, setSelWork]     = useState<Work | null>(null)
+  const [q, setQ]                 = useState('')
+  const [selPlat, setSelPlat]     = useState('all')
+  const [selDay, setSelDay]       = useState('전체')
+  const [statusTab, setStatusTab] = useState<'all' | 'ongoing' | 'ended'>('all')
 
   useEffect(() => { fetchWorks() }, [])
 
@@ -55,206 +43,264 @@ export default function Home() {
   const filtered = useMemo(() => works.filter(w => {
     if (selPlat !== 'all' && w.platform !== selPlat) return false
     if (selDay !== '전체' && w.schedule !== selDay) return false
-    if (filterEnd && !w.is_ended) return false
-    if (filterOn && w.is_ended) return false
+    if (statusTab === 'ongoing' && w.is_ended) return false
+    if (statusTab === 'ended' && !w.is_ended) return false
     if (q && !w.title.includes(q) && !w.platform.includes(q) && !(w.genre || '').includes(q)) return false
     return true
-  }), [works, selPlat, selDay, filterEnd, filterOn, q])
+  }), [works, selPlat, selDay, statusTab, q])
 
   const stats = useMemo(() => ({
-    platCount: new Set(works.map(w => w.platform)).size,
-    workCount: works.length,
-    ongoingCount: works.filter(w => !w.is_ended).length,
+    total: works.length,
+    ongoing: works.filter(w => !w.is_ended).length,
+    ended: works.filter(w => w.is_ended).length,
+    plats: new Set(works.map(w => w.platform)).size,
   }), [works])
 
   return (
     <>
-      <Head><title>웹툰허브 — 모든 플랫폼 웹툰 탐색</title></Head>
+      <Head>
+        <title>웹툰허브 — 모든 웹툰, 한 곳에서</title>
+        <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+      </Head>
 
-      {/* 헤더 */}
-      <header style={{ background: '#16161f', borderBottom: '0.5px solid #2a2a3a', padding: '0 1.25rem', height: 52, display: 'flex', alignItems: 'center', position: 'sticky', top: 0, zIndex: 100 }}>
-        <span style={{ fontFamily: "'Nanum Myeongjo',serif", fontSize: '1.2rem', fontWeight: 700, color: '#f0ede6' }}>
-          웹툰<span style={{ color: '#e8c84b' }}>허브</span>
-        </span>
-        <span style={{ fontSize: 11, color: '#7a7a8c', marginLeft: 10 }}>모든 플랫폼, 하나의 공간</span>
-      </header>
+      <div style={{ fontFamily: "'Noto Sans KR', sans-serif", background: '#f8f8f8', minHeight: '100vh' }}>
 
-      {/* 통계 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 1, background: '#2a2a3a', borderBottom: '0.5px solid #2a2a3a' }}>
-        {[
-          [stats.platCount + '개', '연결 플랫폼'],
-          [stats.workCount + '개', '수록 작품'],
-          [stats.ongoingCount + '개', '연재중'],
-        ].map(([n, l]) => (
-          <div key={l} style={{ background: '#16161f', padding: '.65rem', textAlign: 'center' }}>
-            <div style={{ fontSize: '.95rem', fontWeight: 600, color: '#e8c84b' }}>{n}</div>
-            <div style={{ fontSize: 10, color: '#7a7a8c', marginTop: 2 }}>{l}</div>
-          </div>
-        ))}
-      </div>
+        {/* ── 헤더 ── */}
+        <header style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,.06)' }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px', height: 60, display: 'flex', alignItems: 'center', gap: 20 }}>
+            {/* 로고 */}
+            <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #03c75a, #00a040)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 900, color: '#fff' }}>W</div>
+              <span style={{ fontSize: 18, fontWeight: 900, color: '#111', letterSpacing: '-0.5px' }}>
+                웹툰<span style={{ color: '#03c75a' }}>허브</span>
+              </span>
+            </a>
 
-      {/* 검색 */}
-      <div style={{ padding: '.7rem 1rem', position: 'sticky', top: 52, zIndex: 90, background: 'rgba(12,12,16,.95)', backdropFilter: 'blur(12px)', borderBottom: '0.5px solid #2a2a3a' }}>
-        <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-          <input
-            placeholder="제목, 플랫폼, 장르 검색..."
-            value={q} onChange={e => setQ(e.target.value)}
-            style={{ flex: 1, background: '#1e1e2a', border: '0.5px solid #2a2a3a', borderRadius: 8, padding: '0 12px', height: 36, color: '#f0ede6', fontSize: 13, outline: 'none' }}
-          />
-          <button
-            onClick={() => { setFilterEnd(!filterEnd); setFilterOn(false) }}
-            style={{ fontSize: 12, padding: '5px 11px', borderRadius: 8, border: filterEnd ? '0.5px solid #e8c84b' : '0.5px solid #2a2a3a', background: filterEnd ? '#e8c84b' : 'transparent', color: filterEnd ? '#000' : '#7a7a8c', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: filterEnd ? 600 : 400 }}>
-            완결
-          </button>
-          <button
-            onClick={() => { setFilterOn(!filterOn); setFilterEnd(false) }}
-            style={{ fontSize: 12, padding: '5px 11px', borderRadius: 8, border: filterOn ? '0.5px solid #e8c84b' : '0.5px solid #2a2a3a', background: filterOn ? '#e8c84b' : 'transparent', color: filterOn ? '#000' : '#7a7a8c', cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: filterOn ? 600 : 400 }}>
-            연재중
-          </button>
-        </div>
-      </div>
-
-      {/* 플랫폼 칩 */}
-      <div style={{ padding: '.6rem 1rem', display: 'flex', gap: 7, overflowX: 'auto', scrollbarWidth: 'none' }}>
-        {platforms.map(p => {
-          const active = selPlat === p
-          const col = p === 'all' ? '#e8c84b' : getPlatColor(p)
-          return (
-            <button key={p} onClick={() => setSelPlat(p)}
-              style={{ fontSize: 12, padding: '5px 11px', borderRadius: 20, border: `0.5px solid ${active ? col : '#2a2a3a'}`, background: active ? `${col}22` : 'transparent', color: active ? col : '#7a7a8c', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              {p === 'all' ? '전체' : p}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* 요일 탭 */}
-      <div style={{ padding: '.4rem 1rem', display: 'flex', gap: 5, overflowX: 'auto', scrollbarWidth: 'none', borderBottom: '0.5px solid #2a2a3a' }}>
-        {DAYS.map(d => {
-          const active = selDay === d
-          return (
-            <button key={d} onClick={() => setSelDay(d)}
-              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 6, border: `0.5px solid ${active ? '#e8c84b' : '#2a2a3a'}`, background: active ? '#e8c84b' : 'transparent', color: active ? '#000' : '#7a7a8c', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: active ? 600 : 400 }}>
-              {d === '전체' ? '전체' : d + '요일'}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* 결과 수 */}
-      <div style={{ padding: '.5rem 1rem .4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: '#7a7a8c', letterSpacing: '.08em', textTransform: 'uppercase' }}>
-          {q ? `"${q}" 검색 결과` : selDay !== '전체' ? selDay + '요일 업데이트' : selPlat !== 'all' ? selPlat : '전체 작품'}
-        </span>
-        <span style={{ fontSize: 11, color: '#e8c84b', fontWeight: 600 }}>{filtered.length}개</span>
-      </div>
-
-      {/* 그리드 */}
-      {loading ? (
-        <div style={{ padding: '4rem', textAlign: 'center' }}><div className="spinner" /></div>
-      ) : filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem', color: '#7a7a8c', fontSize: 13, lineHeight: 2 }}>
-          {works.length === 0
-            ? <>Supabase에 작품 데이터를 업로드해주세요<br /><span style={{ fontSize: 11, opacity: .6 }}>아래 가이드를 참고하세요</span></>
-            : '검색된 작품이 없어요 😢'}
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(140px,1fr))', gap: 10, padding: '0 1rem 2rem' }}>
-          {filtered.map(w => (
-            <div key={w.id} onClick={() => setSelWork(w)}
-              style={{ background: '#16161f', border: '0.5px solid #2a2a3a', borderRadius: 10, overflow: 'hidden', cursor: 'pointer', transition: 'transform .18s, border-color .18s' }}
-              onMouseOver={e => { (e.currentTarget as HTMLElement).style.borderColor = '#e8c84b'; (e.currentTarget as HTMLElement).style.transform = 'translateY(-2px)' }}
-              onMouseOut={e => { (e.currentTarget as HTMLElement).style.borderColor = '#2a2a3a'; (e.currentTarget as HTMLElement).style.transform = 'none' }}>
-              <div style={{ width: '100%', aspectRatio: '3/4', background: w.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.4rem', position: 'relative' }}>
-                {w.emoji}
-                {w.schedule && (
-                  <div style={{ position: 'absolute', top: 7, left: 7, fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 600, background: 'rgba(232,200,75,.18)', color: '#e8c84b' }}>
-                    {w.schedule}요일
-                  </div>
-                )}
-                {w.is_ended && (
-                  <div style={{ position: 'absolute', top: 7, right: 7, fontSize: 9, padding: '2px 6px', borderRadius: 4, background: 'rgba(255,255,255,.12)', color: '#7a7a8c' }}>
-                    완결
-                  </div>
-                )}
-              </div>
-              <div style={{ padding: '8px 10px 10px' }}>
-                <div style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, marginBottom: 6, color: '#f0ede6' }}>{w.title}</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, color: '#7a7a8c' }}>{(w.genre || '').split('·')[0] || '—'}</span>
-                  <span style={getPlatBadgeStyle(w.platform)}>{w.platform}</span>
-                </div>
-              </div>
+            {/* 검색창 */}
+            <div style={{ flex: 1, maxWidth: 500, position: 'relative' }}>
+              <input
+                placeholder="작품, 장르를 검색해 보세요"
+                value={q} onChange={e => setQ(e.target.value)}
+                style={{ width: '100%', height: 40, background: '#f4f4f4', border: '1.5px solid transparent', borderRadius: 20, padding: '0 44px 0 18px', fontSize: 14, color: '#111', outline: 'none', transition: 'border-color .15s', fontFamily: 'inherit' }}
+                onFocus={e => (e.target.style.borderColor = '#03c75a')}
+                onBlur={e => (e.target.style.borderColor = 'transparent')}
+              />
+              <div style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: '#888', fontSize: 16 }}>🔍</div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {/* 작품 상세 시트 */}
-      {selWork && <WorkDetailSheet work={selWork} onClose={() => setSelWork(null)} />}
+            {/* 통계 뱃지 */}
+            <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+              {[
+                { label: '전체', value: stats.total, color: '#111' },
+                { label: '연재', value: stats.ongoing, color: '#03c75a' },
+                { label: '완결', value: stats.ended, color: '#888' },
+              ].map(s => (
+                <div key={s.label} style={{ textAlign: 'center', lineHeight: 1 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: s.color }}>{s.value.toLocaleString()}</div>
+                  <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </header>
+
+        {/* ── 필터 바 ── */}
+        <div style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 60, zIndex: 90 }}>
+          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+
+            {/* 연재/완결 탭 + 요일 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 0, borderBottom: '1px solid #f0f0f0', overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {/* 연재 상태 탭 */}
+              {([['all', '전체'], ['ongoing', '연재중'], ['ended', '완결']] as const).map(([val, label]) => (
+                <button key={val} onClick={() => setStatusTab(val)}
+                  style={{ padding: '12px 16px', fontSize: 14, fontWeight: statusTab === val ? 700 : 400, color: statusTab === val ? '#03c75a' : '#555', background: 'none', border: 'none', borderBottom: statusTab === val ? '2.5px solid #03c75a' : '2.5px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', marginBottom: -1 }}>
+                  {label}
+                </button>
+              ))}
+              <div style={{ width: 1, height: 18, background: '#e8e8e8', margin: '0 8px' }} />
+              {/* 요일 탭 */}
+              {DAYS.map(d => (
+                <button key={d} onClick={() => setSelDay(d)}
+                  style={{ padding: '12px 12px', fontSize: 13, fontWeight: selDay === d ? 700 : 400, color: selDay === d ? '#111' : '#888', background: 'none', border: 'none', borderBottom: selDay === d ? '2.5px solid #111' : '2.5px solid transparent', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', marginBottom: -1 }}>
+                  {d === '전체' ? '전체요일' : d + '요일'}
+                </button>
+              ))}
+            </div>
+
+            {/* 플랫폼 칩 */}
+            <div style={{ display: 'flex', gap: 6, padding: '8px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
+              {platforms.map(p => {
+                const active = selPlat === p
+                const col = p === 'all' ? '#111' : getPlatColor(p)
+                return (
+                  <button key={p} onClick={() => setSelPlat(p)}
+                    style={{ fontSize: 12, padding: '5px 13px', borderRadius: 20, border: `1.5px solid ${active ? col : '#e0e0e0'}`, background: active ? col : '#fff', color: active ? '#fff' : '#555', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, fontWeight: active ? 600 : 400, fontFamily: 'inherit', transition: 'all .15s' }}>
+                    {p === 'all' ? '전체 플랫폼' : p}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* ── 메인 그리드 ── */}
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 16px 40px' }}>
+
+          {/* 결과 수 */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+            <div style={{ fontSize: 13, color: '#888' }}>
+              {q ? <><span style={{ color: '#111', fontWeight: 600 }}>"{q}"</span> 검색 결과 </> : ''}
+              <span style={{ color: '#111', fontWeight: 700 }}>{filtered.length.toLocaleString()}</span>개 작품
+            </div>
+          </div>
+
+          {loading ? (
+            <div style={{ padding: '80px', textAlign: 'center' }}>
+              <div style={{ width: 36, height: 36, border: '3px solid #e8e8e8', borderTopColor: '#03c75a', borderRadius: '50%', animation: 'spin .7s linear infinite', margin: '0 auto' }} />
+              <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '80px 20px', color: '#aaa' }}>
+              <div style={{ fontSize: 40, marginBottom: 12 }}>🔍</div>
+              <div style={{ fontSize: 16, fontWeight: 600, color: '#555', marginBottom: 6 }}>검색 결과가 없어요</div>
+              <div style={{ fontSize: 13 }}>다른 검색어나 필터를 사용해보세요</div>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px 14px' }}>
+              {filtered.map(w => (
+                <WorkCard key={w.id} work={w} onClick={() => setSelWork(w)} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {selWork && <WorkSheet work={selWork} onClose={() => setSelWork(null)} />}
     </>
   )
 }
 
-function WorkDetailSheet({ work, onClose }: { work: Work; onClose: () => void }) {
+/* ── 카드 컴포넌트 ── */
+function WorkCard({ work, onClick }: { work: Work; onClick: () => void }) {
+  const [hovered, setHovered] = useState(false)
+  const platColor = getPlatColor(work.platform)
+  const platIcon  = getPlatIcon(work.platform)
+
+  return (
+    <div onClick={onClick}
+      onMouseOver={() => setHovered(true)}
+      onMouseOut={() => setHovered(false)}
+      style={{ cursor: 'pointer', transition: 'transform .18s' , transform: hovered ? 'translateY(-4px)' : 'none' }}>
+
+      {/* 썸네일 */}
+      <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', marginBottom: 8, boxShadow: hovered ? '0 8px 24px rgba(0,0,0,.15)' : '0 2px 8px rgba(0,0,0,.08)', transition: 'box-shadow .18s', aspectRatio: '3/4', background: work.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
+        {work.emoji}
+
+        {/* 완결 배지 */}
+        {work.is_ended && (
+          <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 5, background: 'rgba(0,0,0,.55)', color: '#fff', backdropFilter: 'blur(4px)' }}>
+            완결
+          </div>
+        )}
+
+        {/* 요일 배지 */}
+        {work.schedule && !work.is_ended && (
+          <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 5, background: '#03c75a', color: '#fff' }}>
+            {work.schedule}
+          </div>
+        )}
+
+        {/* 플랫폼 아이콘 */}
+        <div style={{ position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 5, background: platColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: '#fff' }}>
+          {platIcon}
+        </div>
+      </div>
+
+      {/* 텍스트 */}
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#111', lineHeight: 1.35, marginBottom: 3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>
+        {work.title}
+      </div>
+      <div style={{ fontSize: 11, color: '#999' }}>
+        {work.genre || '—'}
+      </div>
+    </div>
+  )
+}
+
+/* ── 상세 시트 ── */
+function WorkSheet({ work, onClose }: { work: Work; onClose: () => void }) {
   const platColor = getPlatColor(work.platform)
 
   return (
-    <div className="sheet-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="sheet">
-        <div style={{ width: 36, height: 3, background: '#2a2a3a', borderRadius: 2, margin: '0 auto 1rem' }} />
-        <button onClick={onClose} style={{ float: 'right', background: '#1e1e2a', border: '0.5px solid #2a2a3a', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: '#7a7a8c', fontSize: 12 }}>✕</button>
+    <div onClick={e => e.target === e.currentTarget && onClose()}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 560, maxHeight: '85vh', overflow: 'auto', padding: '0 0 40px', animation: 'sheetUp .22s ease', fontFamily: "'Noto Sans KR', sans-serif" }}>
+        <style>{`@keyframes sheetUp{from{transform:translateY(40px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
 
-        {/* 작품 헤더 */}
-        <div style={{ display: 'flex', gap: 14, marginBottom: '1.25rem', clear: 'both' }}>
-          <div style={{ width: 72, height: 96, borderRadius: 10, background: work.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.2rem', flexShrink: 0 }}>
+        {/* 핸들 */}
+        <div style={{ textAlign: 'center', padding: '12px 0 0' }}>
+          <div style={{ width: 40, height: 4, borderRadius: 2, background: '#e0e0e0', display: 'inline-block' }} />
+        </div>
+
+        {/* 상단 - 썸네일 + 정보 */}
+        <div style={{ display: 'flex', gap: 16, padding: '16px 20px 20px' }}>
+          <div style={{ width: 90, height: 120, borderRadius: 10, background: work.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', flexShrink: 0, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>
             {work.emoji}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: "'Nanum Myeongjo',serif", fontSize: '1.15rem', fontWeight: 700, marginBottom: 6, lineHeight: 1.3 }}>
-              {work.title}
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: '#111', lineHeight: 1.3, marginBottom: 8 }}>{work.title}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {[
                 ['플랫폼', work.platform],
                 ['장르', work.genre || '—'],
                 ['연재 요일', work.schedule ? work.schedule + '요일' : '—'],
                 ['상태', work.is_ended ? '완결' : '연재중'],
-              ].map(([label, value]) => (
-                <div key={label} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 10, color: '#7a7a8c', width: 52, flexShrink: 0 }}>{label}</span>
-                  <span style={{ fontSize: 12, color: label === '상태' ? (work.is_ended ? '#7a7a8c' : '#2ecc71') : '#f0ede6' }}>{value}</span>
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: '#aaa', width: 50, flexShrink: 0 }}>{k}</span>
+                  <span style={{ fontSize: 13, color: k === '상태' ? (work.is_ended ? '#888' : '#03c75a') : '#333', fontWeight: k === '상태' ? 600 : 400 }}>{v}</span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <hr style={{ border: 'none', borderTop: '0.5px solid #2a2a3a', margin: '0 0 1rem' }} />
+        <div style={{ height: 1, background: '#f0f0f0', margin: '0 20px' }} />
 
-        {/* 플랫폼 바로가기 */}
-        <div style={{ fontSize: 10, color: '#7a7a8c', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 8 }}>
-          플랫폼 바로가기
-        </div>
-        {work.page_link ? (
-          <a href={work.page_link} target="_blank" rel="noopener noreferrer"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderRadius: 10, border: '0.5px solid #2a2a3a', background: '#1e1e2a', textDecoration: 'none', transition: 'border-color .18s' }}
-            onMouseOver={e => (e.currentTarget.style.borderColor = '#e8c84b')}
-            onMouseOut={e => (e.currentTarget.style.borderColor = '#2a2a3a')}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 8, height: 8, borderRadius: '50%', background: platColor, flexShrink: 0 }} />
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#f0ede6' }}>{work.platform}에서 보기</div>
-                <div style={{ fontSize: 11, color: '#7a7a8c', marginTop: 2 }}>
-                  {work.page_link.replace(/^https?:\/\//, '').split('/')[0]}
+        {/* 플랫폼 바로가기 버튼 */}
+        <div style={{ padding: '20px 20px 0' }}>
+          <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 10 }}>플랫폼 바로가기</div>
+          {work.page_link ? (
+            <a href={work.page_link} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none', display: 'block' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderRadius: 12, background: platColor, cursor: 'pointer', transition: 'opacity .15s' }}
+                onMouseOver={e => (e.currentTarget.style.opacity = '.88')}
+                onMouseOut={e => (e.currentTarget.style.opacity = '1')}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(255,255,255,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: '#fff' }}>
+                    {getPlatIcon(work.platform)}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{work.platform}에서 보기</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,.75)', marginTop: 1 }}>{work.page_link.replace(/^https?:\/\//, '').split('/')[0]}</div>
+                  </div>
                 </div>
+                <div style={{ fontSize: 18, color: 'rgba(255,255,255,.9)' }}>→</div>
               </div>
+            </a>
+          ) : (
+            <div style={{ padding: '14px 18px', borderRadius: 12, background: '#f5f5f5', fontSize: 13, color: '#aaa', textAlign: 'center' }}>
+              등록된 링크가 없습니다
             </div>
-            <div style={{ fontSize: 13, color: '#e8c84b', fontWeight: 600 }}>→</div>
-          </a>
-        ) : (
-          <div style={{ fontSize: 12, color: '#7a7a8c', padding: '12px 0' }}>등록된 링크가 없습니다</div>
-        )}
+          )}
+        </div>
+
+        {/* 닫기 버튼 */}
+        <div style={{ padding: '16px 20px 0' }}>
+          <button onClick={onClose}
+            style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1.5px solid #e8e8e8', background: '#fff', fontSize: 14, color: '#555', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>
+            닫기
+          </button>
+        </div>
       </div>
     </div>
   )

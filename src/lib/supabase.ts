@@ -19,28 +19,32 @@ export type Work = {
 
 export const PLATFORM_COLORS: Record<string, string> = {
   '네이버': '#03c75a', '네이버웹툰': '#03c75a',
-  '카카오페이지': '#c8a900', '카카오': '#c8a900',
+  '카카오페이지': '#ffcd00', '카카오': '#ffcd00',
   '레진': '#e40059', '레진코믹스': '#e40059',
   '리디': '#1f8ce6', '리디북스': '#1f8ce6',
   '탑툰': '#ff6b35', '봄툰': '#9b59b6',
 }
 
 export const GENRE_EMOJI: Record<string, { emoji: string; bg: string }> = {
-  '판타지':   { emoji: '⚔️', bg: '#121a20' },
-  '무협':     { emoji: '🗡️', bg: '#0f1a10' },
-  '로맨스':   { emoji: '💌', bg: '#1a0d18' },
-  '드라마':   { emoji: '🎭', bg: '#1a100d' },
-  '개그':     { emoji: '😂', bg: '#1a1a08' },
-  '스포츠':   { emoji: '⚽', bg: '#0a0f1a' },
-  '액션':     { emoji: '💥', bg: '#1a0a0a' },
-  '학원':     { emoji: '📚', bg: '#0a1018' },
-  '로판':     { emoji: '👑', bg: '#1a0a20' },
-  '힐링':     { emoji: '🌿', bg: '#0a1810' },
-  '미스터리': { emoji: '🔍', bg: '#0d0d1a' },
+  '판타지':   { emoji: '⚔️', bg: '#dce8f5' },
+  '무협':     { emoji: '🗡️', bg: '#d5ecd5' },
+  '로맨스':   { emoji: '💌', bg: '#fce4ec' },
+  '드라마':   { emoji: '🎭', bg: '#fff3e0' },
+  '개그':     { emoji: '😂', bg: '#fffde7' },
+  '스포츠':   { emoji: '⚽', bg: '#e8f5e9' },
+  '액션':     { emoji: '💥', bg: '#fce4e4' },
+  '학원':     { emoji: '📚', bg: '#e3f2fd' },
+  '로판':     { emoji: '👑', bg: '#f3e5f5' },
+  '힐링':     { emoji: '🌿', bg: '#e8f5e9' },
+  '미스터리': { emoji: '🔍', bg: '#ede7f6' },
+  '공포':     { emoji: '👻', bg: '#e8eaf6' },
+  '순정':     { emoji: '🌸', bg: '#fce4ec' },
+  '일상':     { emoji: '☀️', bg: '#fffde7' },
+  '스릴러':   { emoji: '🔪', bg: '#efebe9' },
 }
 
 export function getGenreInfo(genre: string | null) {
-  if (!genre) return { emoji: '📖', bg: '#14141e' }
+  if (!genre) return { emoji: '📖', bg: '#f0f0f0' }
   const key = Object.keys(GENRE_EMOJI).find(k => genre.includes(k))
-  return key ? GENRE_EMOJI[key] : { emoji: '📖', bg: '#14141e' }
+  return key ? GENRE_EMOJI[key] : { emoji: '📖', bg: '#f0f0f0' }
 }
