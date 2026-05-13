@@ -28,12 +28,28 @@ export default function Home() {
 
   useEffect(() => { fetchWorks() }, [])
 
-  async function fetchWorks() {
-    setLoading(true)
-    const { data } = await supabase.from('works').select('*').order('title')
-    if (data) setWorks(data as Work[])
-    setLoading(false)
-  }
+    async function fetchWorks() {
+        setLoading(true)
+        const allWorks: Work[] = []
+        let from = 0
+        const pageSize = 1000
+
+        while (true) {
+            const { data, error } = await supabase
+                .from('works')
+                .select('*')
+                .order('title')
+                .range(from, from + pageSize - 1)
+
+            if (error || !data || data.length === 0) break
+            allWorks.push(...(data as Work[]))
+            if (data.length < pageSize) break
+            from += pageSize
+        }
+
+        setWorks(allWorks)
+        setLoading(false)
+    }
 
   const platforms = useMemo(() => {
     const set = new Set(works.map(w => w.platform))
