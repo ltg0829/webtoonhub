@@ -20,7 +20,10 @@ export default function Home() {
   const [selWork, setSelWork] = useState<Work | null>(null)
   const [q, setQ]             = useState('')
   const [selPlat, setSelPlat] = useState('all')
-  const [selDay, setSelDay]   = useState('전체')
+  /*const [selDay, setSelDay]   = useState('전체')*/
+  const DAY_MAP = ['일', '월', '화', '수', '목', '금', '토']
+  const today = DAY_MAP[new Date().getDay()]
+  const [selDay, setSelDay] = useState(today)
 
   useEffect(() => { fetchWorks() }, [])
 
