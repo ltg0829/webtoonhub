@@ -15,7 +15,15 @@ export function getPlatIcon(p: string) {
   return p[0]
 }
 
-// ── 로그인 모달 ──────────────────────────────────────
+// ── 최근 본 작품 기록 ──────────────────────────────
+export async function recordView(userId: string, workId: number) {
+  await supabase.from('recent_views').upsert(
+    { user_id: userId, work_id: workId, viewed_at: new Date().toISOString() },
+    { onConflict: 'user_id,work_id' }
+  )
+}
+
+// ── 로그인 모달 ────────────────────────────────────
 export function AuthModal({ onClose }: { onClose: () => void }) {
   const [mode, setMode]       = useState<'login' | 'signup'>('login')
   const [email, setEmail]     = useState('')
@@ -58,13 +66,13 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
         {done ? (
           <>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>이메일 확인 필요 ✉️</div>
-            <p style={{ fontSize: 13, color: '#888', marginBottom: 20, lineHeight: 1.6 }}>가입하신 이메일로 인증 링크를 보냈습니다. 메일함을 확인해주세요.</p>
+            <p style={{ fontSize: 13, color: '#888', marginBottom: 20, lineHeight: 1.6 }}>가입하신 이메일로 인증 링크를 보냈습니다.</p>
             <button onClick={onClose} style={{ width: '100%', height: 44, borderRadius: 10, background: '#03c75a', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>확인</button>
           </>
         ) : (
           <>
             <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>웹툰허브 {mode === 'login' ? '로그인' : '회원가입'}</div>
-            <p style={{ fontSize: 13, color: '#aaa', marginBottom: 20 }}>{mode === 'login' ? '즐겨찾기를 이용하려면 로그인하세요' : '닉네임과 이메일로 간편 가입'}</p>
+            <p style={{ fontSize: 13, color: '#aaa', marginBottom: 20 }}>{mode === 'login' ? '즐겨찾기와 최근 본 작품을 이용하려면 로그인하세요' : '닉네임과 이메일로 간편 가입'}</p>
             {mode === 'signup' && <input style={inp} placeholder="닉네임 (2자 이상)" maxLength={12} value={nick} onChange={e => setNick(e.target.value)} />}
             <input style={inp} type="email" placeholder="이메일" value={email} onChange={e => setEmail(e.target.value)} />
             <input style={inp} type="password" placeholder={mode === 'login' ? '비밀번호' : '비밀번호 (6자 이상)'} value={pw} onChange={e => setPw(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()} />
@@ -85,7 +93,7 @@ export function AuthModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ── 헤더 ────────────────────────────────────────────
+// ── 헤더 ──────────────────────────────────────────
 export function SiteHeader({ q, setQ }: { q: string; setQ: (v: string) => void }) {
   const [userId, setUserId]     = useState<string | null>(null)
   const [nickname, setNickname] = useState<string | null>(null)
@@ -108,8 +116,6 @@ export function SiteHeader({ q, setQ }: { q: string; setQ: (v: string) => void }
     return () => subscription.unsubscribe()
   }, [])
 
-  const logout = async () => { await supabase.auth.signOut() }
-
   return (
     <>
       <header style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 0, zIndex: 100, boxShadow: '0 1px 8px rgba(0,0,0,.06)' }}>
@@ -129,10 +135,12 @@ export function SiteHeader({ q, setQ }: { q: string; setQ: (v: string) => void }
             {userId ? (
               <>
                 <span style={{ fontSize: 13, color: '#555' }}>{nickname || ''}님</span>
-                <button onClick={logout} style={{ fontSize: 13, padding: '6px 14px', borderRadius: 8, border: '1.5px solid #e8e8e8', background: '#fff', color: '#888', cursor: 'pointer', fontFamily: 'inherit' }}>로그아웃</button>
+                <button onClick={() => supabase.auth.signOut()}
+                  style={{ fontSize: 13, padding: '6px 14px', borderRadius: 8, border: '1.5px solid #e8e8e8', background: '#fff', color: '#888', cursor: 'pointer', fontFamily: 'inherit' }}>로그아웃</button>
               </>
             ) : (
-              <button onClick={() => setShowAuth(true)} style={{ fontSize: 13, padding: '7px 16px', borderRadius: 8, border: 'none', background: '#03c75a', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>로그인</button>
+              <button onClick={() => setShowAuth(true)}
+                style={{ fontSize: 13, padding: '7px 16px', borderRadius: 8, border: 'none', background: '#03c75a', color: '#fff', fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>로그인</button>
             )}
           </div>
         </div>
@@ -142,45 +150,43 @@ export function SiteHeader({ q, setQ }: { q: string; setQ: (v: string) => void }
   )
 }
 
-// ── 즐겨찾기 섹션 ────────────────────────────────────
-function FavoriteSection({ userId, onWorkClick }: { userId: string; onWorkClick: (w: Work) => void }) {
-  const [favWorks, setFavWorks] = useState<Work[]>([])
-
-  useEffect(() => {
-    supabase
-      .from('favorites')
-      .select('work_id, works(*)')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        if (data) setFavWorks(data.map((d: any) => d.works).filter(Boolean))
-      })
-  }, [userId])
-
-  if (favWorks.length === 0) return null
+// ── 가로 스크롤 작품 섹션 (즐겨찾기 / 최근 본 작품 공통) ──
+function HorizontalSection({ title, icon, works, onWorkClick, emptyMsg }: {
+  title: string; icon: string; works: Work[]
+  onWorkClick: (w: Work) => void; emptyMsg: string
+}) {
+  if (works.length === 0) return (
+    <div style={{ background: '#fff', borderBottom: '1px solid #efefef', padding: '12px 0' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span>{icon}</span>{title}
+        </div>
+        <div style={{ fontSize: 12, color: '#bbb' }}>{emptyMsg}</div>
+      </div>
+    </div>
+  )
 
   return (
     <div style={{ background: '#fff', borderBottom: '1px solid #efefef', padding: '14px 0' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>⭐</span> 즐겨찾기
-          <span style={{ fontSize: 12, color: '#aaa', fontWeight: 400 }}>{favWorks.length}개</span>
+        <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span>{icon}</span>{title}
+          <span style={{ fontSize: 12, color: '#bbb', fontWeight: 400 }}>{works.length}개</span>
         </div>
         <div style={{ display: 'flex', gap: 10, overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 4 }}>
-          {favWorks.map(w => {
+          {works.map(w => {
             const platColor = getPlatColor(w.platform)
             const platIcon  = getPlatIcon(w.platform)
             return (
-              <div key={w.id} onClick={() => onWorkClick(w)}
-                style={{ flexShrink: 0, width: 80, cursor: 'pointer' }}>
-                <div style={{ width: 80, height: 107, borderRadius: 8, background: w.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem', position: 'relative', marginBottom: 5, boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
+              <div key={w.id} onClick={() => onWorkClick(w)} style={{ flexShrink: 0, width: 76, cursor: 'pointer' }}>
+                <div style={{ width: 76, height: 101, borderRadius: 8, background: w.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.7rem', position: 'relative', marginBottom: 5, boxShadow: '0 2px 8px rgba(0,0,0,.1)' }}>
                   {w.emoji}
-                  <div style={{ position: 'absolute', top: 5, right: 5, width: 18, height: 18, borderRadius: 4, background: platColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 900, color: '#fff' }}>{platIcon}</div>
-                  {w.schedule && !w.is_ended && (
-                    <div style={{ position: 'absolute', bottom: 5, left: 5, fontSize: 9, fontWeight: 700, padding: '2px 5px', borderRadius: 4, background: '#03c75a', color: '#fff' }}>{w.schedule}</div>
+                  <div style={{ position: 'absolute', top: 4, right: 4, width: 17, height: 17, borderRadius: 4, background: platColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 900, color: '#fff' }}>{platIcon}</div>
+                  {!w.is_ended && w.schedule && (
+                    <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: 8, fontWeight: 700, padding: '2px 4px', borderRadius: 3, background: '#03c75a', color: '#fff' }}>{w.schedule}</div>
                   )}
                 </div>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#111', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{w.title}</div>
+                <div style={{ fontSize: 10, fontWeight: 600, color: '#111', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{w.title}</div>
               </div>
             )
           })}
@@ -190,8 +196,39 @@ function FavoriteSection({ userId, onWorkClick }: { userId: string; onWorkClick:
   )
 }
 
-// ── 워크카드 ────────────────────────────────────────
-export function WorkCard({ work, onClick, userId, onFavChange }: { work: Work; onClick: () => void; userId?: string | null; onFavChange?: () => void }) {
+// ── 즐겨찾기 섹션 ──────────────────────────────────
+function FavoriteSection({ userId, onWorkClick, refreshKey }: { userId: string; onWorkClick: (w: Work) => void; refreshKey: number }) {
+  const [favWorks, setFavWorks] = useState<Work[]>([])
+
+  useEffect(() => {
+    supabase.from('favorites').select('work_id, works(*)').eq('user_id', userId).order('created_at', { ascending: false })
+      .then(({ data }) => {
+        if (data) setFavWorks(data.map((d: any) => d.works).filter(Boolean))
+      })
+  }, [userId, refreshKey])
+
+  return <HorizontalSection title="즐겨찾기" icon="⭐" works={favWorks} onWorkClick={onWorkClick} emptyMsg="⭐ 버튼을 눌러 즐겨찾기를 추가해보세요" />
+}
+
+// ── 최근 본 작품 섹션 ──────────────────────────────
+function RecentSection({ userId, onWorkClick, refreshKey }: { userId: string; onWorkClick: (w: Work) => void; refreshKey: number }) {
+  const [recentWorks, setRecentWorks] = useState<Work[]>([])
+
+  useEffect(() => {
+    supabase.from('recent_views').select('work_id, viewed_at, works(*)').eq('user_id', userId)
+      .order('viewed_at', { ascending: false }).limit(20)
+      .then(({ data }) => {
+        if (data) setRecentWorks(data.map((d: any) => d.works).filter(Boolean))
+      })
+  }, [userId, refreshKey])
+
+  return <HorizontalSection title="최근 본 작품" icon="🕐" works={recentWorks} onWorkClick={onWorkClick} emptyMsg="작품을 클릭하면 여기에 기록됩니다" />
+}
+
+// ── 워크카드 ──────────────────────────────────────
+export function WorkCard({ work, onClick, userId, onFavChange }: {
+  work: Work; onClick: () => void; userId?: string | null; onFavChange?: () => void
+}) {
   const [hovered, setHovered] = useState(false)
   const [isFav, setIsFav]     = useState(false)
   const platColor = getPlatColor(work.platform)
@@ -221,21 +258,15 @@ export function WorkCard({ work, onClick, userId, onFavChange }: { work: Work; o
       style={{ cursor: 'pointer', transition: 'transform .18s', transform: hovered ? 'translateY(-4px)' : 'none' }}>
       <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', marginBottom: 8, boxShadow: hovered ? '0 8px 24px rgba(0,0,0,.15)' : '0 2px 8px rgba(0,0,0,.08)', transition: 'box-shadow .18s', aspectRatio: '3/4', background: work.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem' }}>
         {work.emoji}
-
-        {/* 요일/완결 배지 */}
         {work.is_ended ? (
           <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 5, background: 'rgba(0,0,0,.55)', color: '#fff' }}>완결</div>
         ) : work.schedule ? (
           <div style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: '3px 7px', borderRadius: 5, background: '#03c75a', color: '#fff' }}>{work.schedule}</div>
         ) : null}
-
-        {/* 플랫폼 아이콘 */}
         <div style={{ position: 'absolute', top: 8, right: 8, width: 22, height: 22, borderRadius: 5, background: platColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, color: '#fff' }}>{platIcon}</div>
-
-        {/* 즐겨찾기 버튼 */}
         {userId && (
           <button onClick={toggleFav}
-            style={{ position: 'absolute', bottom: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: isFav ? '#ffcd00' : 'rgba(255,255,255,.85)', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, boxShadow: '0 2px 6px rgba(0,0,0,.15)', transition: 'all .15s' }}>
+            style={{ position: 'absolute', bottom: 8, right: 8, width: 28, height: 28, borderRadius: '50%', background: isFav ? '#fff8e1' : 'rgba(255,255,255,.85)', border: `2px solid ${isFav ? '#ffcd00' : 'transparent'}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, boxShadow: '0 2px 6px rgba(0,0,0,.15)', transition: 'all .15s' }}>
             {isFav ? '⭐' : '☆'}
           </button>
         )}
@@ -246,8 +277,10 @@ export function WorkCard({ work, onClick, userId, onFavChange }: { work: Work; o
   )
 }
 
-// ── 워크시트 ────────────────────────────────────────
-export function WorkSheet({ work, onClose, userId, onFavChange }: { work: Work; onClose: () => void; userId?: string | null; onFavChange?: () => void }) {
+// ── 워크시트 ──────────────────────────────────────
+export function WorkSheet({ work, onClose, userId, onFavChange }: {
+  work: Work; onClose: () => void; userId?: string | null; onFavChange?: () => void
+}) {
   const [isFav, setIsFav] = useState(false)
   const platColor = getPlatColor(work.platform)
   const platIcon  = getPlatIcon(work.platform)
@@ -256,6 +289,8 @@ export function WorkSheet({ work, onClose, userId, onFavChange }: { work: Work; 
     if (!userId) return
     supabase.from('favorites').select('id').eq('user_id', userId).eq('work_id', work.id).single()
       .then(({ data }) => setIsFav(!!data))
+    // 상세 시트 열 때 최근 본 작품 기록
+    recordView(userId, work.id)
   }, [userId, work.id])
 
   async function toggleFav() {
@@ -278,7 +313,6 @@ export function WorkSheet({ work, onClose, userId, onFavChange }: { work: Work; 
         <div style={{ textAlign: 'center', padding: '12px 0 0' }}>
           <div style={{ width: 40, height: 4, borderRadius: 2, background: '#e0e0e0', display: 'inline-block' }} />
         </div>
-
         <div style={{ display: 'flex', gap: 16, padding: '16px 20px 20px' }}>
           <div style={{ width: 90, height: 120, borderRadius: 10, background: work.bg_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem', flexShrink: 0, boxShadow: '0 4px 16px rgba(0,0,0,.12)' }}>{work.emoji}</div>
           <div style={{ flex: 1 }}>
@@ -301,9 +335,7 @@ export function WorkSheet({ work, onClose, userId, onFavChange }: { work: Work; 
             </div>
           </div>
         </div>
-
         <div style={{ height: 1, background: '#f0f0f0', margin: '0 20px' }} />
-
         <div style={{ padding: '20px 20px 0' }}>
           <div style={{ fontSize: 11, color: '#aaa', letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 10 }}>플랫폼 바로가기</div>
           {work.page_link ? (
@@ -325,7 +357,6 @@ export function WorkSheet({ work, onClose, userId, onFavChange }: { work: Work; 
             <div style={{ padding: '14px 18px', borderRadius: 12, background: '#f5f5f5', fontSize: 13, color: '#aaa', textAlign: 'center' }}>등록된 링크가 없습니다</div>
           )}
         </div>
-
         <div style={{ padding: '12px 20px 0' }}>
           <button onClick={onClose} style={{ width: '100%', padding: '12px', borderRadius: 12, border: '1.5px solid #e8e8e8', background: '#fff', fontSize: 14, color: '#555', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 500 }}>닫기</button>
         </div>
@@ -334,7 +365,6 @@ export function WorkSheet({ work, onClose, userId, onFavChange }: { work: Work; 
   )
 }
 
-// ── 공통 ────────────────────────────────────────────
 export function LoadingSpinner() {
   return (
     <div style={{ padding: '80px', textAlign: 'center' }}>
@@ -354,7 +384,7 @@ export function EmptyState() {
   )
 }
 
-// ── 메인 페이지 ──────────────────────────────────────
+// ── 메인 페이지 ────────────────────────────────────
 export default function Home() {
   const today = DAY_MAP[new Date().getDay()]
 
@@ -362,7 +392,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [selWork, setSelWork] = useState<Work | null>(null)
   const [userId, setUserId]   = useState<string | null>(null)
-  const [favKey, setFavKey]   = useState(0)
+  const [refreshKey, setRefreshKey] = useState(0)
   const [q, setQ]             = useState('')
   const [selPlat, setSelPlat] = useState('all')
   const [selDay, setSelDay]   = useState(today)
@@ -403,13 +433,17 @@ export default function Home() {
       if (q && !w.title.includes(q) && !w.platform.includes(q) && !(w.genre || '').includes(q)) return false
       return true
     })
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (sortBy === 'platform') return a.platform.localeCompare(b.platform)
       if (sortBy === 'genre')    return (a.genre || '').localeCompare(b.genre || '')
       return a.title.localeCompare(b.title)
     })
-    return list
   }, [works, selPlat, selDay, q, sortBy])
+
+  function handleWorkClick(work: Work) {
+    setSelWork(work)
+    if (userId) recordView(userId, work.id).then(() => setRefreshKey(k => k + 1))
+  }
 
   return (
     <>
@@ -418,14 +452,17 @@ export default function Home() {
 
         <SiteHeader q={q} setQ={setQ} />
 
-        {/* 즐겨찾기 섹션 (로그인 시 표시) */}
-        {userId && <FavoriteSection key={favKey} userId={userId} onWorkClick={setSelWork} />}
+        {/* 로그인 시 — 즐겨찾기 + 최근 본 작품 */}
+        {userId && (
+          <>
+            <FavoriteSection userId={userId} onWorkClick={handleWorkClick} refreshKey={refreshKey} />
+            <RecentSection   userId={userId} onWorkClick={handleWorkClick} refreshKey={refreshKey} />
+          </>
+        )}
 
         {/* 탭 + 필터 */}
         <div style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 60, zIndex: 90 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-
-            {/* 연재/완결 탭 + 요일 */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', overflowX: 'auto', scrollbarWidth: 'none' }}>
               <a href="/" style={{ textDecoration: 'none' }}>
                 <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 700, color: '#03c75a', borderBottom: '2.5px solid #03c75a', whiteSpace: 'nowrap', marginBottom: -1 }}>🟢 연재중</div>
@@ -444,8 +481,6 @@ export default function Home() {
                 )
               })}
             </div>
-
-            {/* 플랫폼 칩 + 정렬 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
               {platforms.map(p => {
                 const active = selPlat === p
@@ -457,7 +492,6 @@ export default function Home() {
                   </button>
                 )
               })}
-              {/* 정렬 */}
               <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
                 <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
                   style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: '1.5px solid #e0e0e0', background: '#fff', color: '#555', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}>
@@ -472,24 +506,25 @@ export default function Home() {
 
         {/* 그리드 */}
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 16px 40px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 13, color: '#888' }}>
-              {q ? <><span style={{ color: '#111', fontWeight: 600 }}>"{q}"</span> 검색 결과 </> : '연재중 '}
-              <span style={{ color: '#111', fontWeight: 700 }}>{filtered.length.toLocaleString()}</span>개 작품
-            </div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>
+            {q ? <><span style={{ color: '#111', fontWeight: 600 }}>"{q}"</span> 검색 결과 </> : '연재중 '}
+            <span style={{ color: '#111', fontWeight: 700 }}>{filtered.length.toLocaleString()}</span>개 작품
           </div>
-
           {loading ? <LoadingSpinner /> : filtered.length === 0 ? <EmptyState /> : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px 14px' }}>
               {filtered.map(w => (
-                <WorkCard key={w.id} work={w} onClick={() => setSelWork(w)} userId={userId} onFavChange={() => setFavKey(k => k + 1)} />
+                <WorkCard key={w.id} work={w} onClick={() => handleWorkClick(w)} userId={userId} onFavChange={() => setRefreshKey(k => k + 1)} />
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {selWork && <WorkSheet work={selWork} onClose={() => { setSelWork(null); setFavKey(k => k + 1) }} userId={userId} onFavChange={() => setFavKey(k => k + 1)} />}
+      {selWork && (
+        <WorkSheet work={selWork} userId={userId}
+          onClose={() => { setSelWork(null); setRefreshKey(k => k + 1) }}
+          onFavChange={() => setRefreshKey(k => k + 1)} />
+      )}
     </>
   )
 }

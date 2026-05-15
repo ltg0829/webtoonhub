@@ -1,18 +1,18 @@
 import { useState, useEffect, useMemo } from 'react'
 import Head from 'next/head'
 import { supabase, Work } from '@/lib/supabase'
-import { SiteHeader, WorkCard, WorkSheet, LoadingSpinner, EmptyState, getPlatColor } from './index'
+import { SiteHeader, WorkCard, WorkSheet, LoadingSpinner, EmptyState, getPlatColor, recordView } from './index'
 
 export default function EndedPage() {
-  const [works, setWorks]     = useState<Work[]>([])
-  const [loading, setLoading] = useState(true)
-  const [selWork, setSelWork] = useState<Work | null>(null)
-  const [userId, setUserId]   = useState<string | null>(null)
-  const [favKey, setFavKey]   = useState(0)
-  const [q, setQ]             = useState('')
-  const [selPlat, setSelPlat] = useState('all')
+  const [works, setWorks]       = useState<Work[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [selWork, setSelWork]   = useState<Work | null>(null)
+  const [userId, setUserId]     = useState<string | null>(null)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [q, setQ]               = useState('')
+  const [selPlat, setSelPlat]   = useState('all')
   const [selGenre, setSelGenre] = useState('all')
-  const [sortBy, setSortBy]   = useState<'title' | 'platform' | 'genre'>('title')
+  const [sortBy, setSortBy]     = useState<'title' | 'platform' | 'genre'>('title')
 
   useEffect(() => {
     fetchWorks()
@@ -54,13 +54,17 @@ export default function EndedPage() {
       if (q && !w.title.includes(q) && !w.platform.includes(q) && !(w.genre || '').includes(q)) return false
       return true
     })
-    list = [...list].sort((a, b) => {
+    return [...list].sort((a, b) => {
       if (sortBy === 'platform') return a.platform.localeCompare(b.platform)
       if (sortBy === 'genre')    return (a.genre || '').localeCompare(b.genre || '')
       return a.title.localeCompare(b.title)
     })
-    return list
   }, [works, selPlat, selGenre, q, sortBy])
+
+  function handleWorkClick(work: Work) {
+    setSelWork(work)
+    if (userId) recordView(userId, work.id).then(() => setRefreshKey(k => k + 1))
+  }
 
   return (
     <>
@@ -73,13 +77,17 @@ export default function EndedPage() {
         <div style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 60, zIndex: 90 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
 
-            {/* 연재/완결 탭 */}
+            {/* 연재 / 완결 탭 */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', overflowX: 'auto', scrollbarWidth: 'none' }}>
               <a href="/" style={{ textDecoration: 'none' }}>
-                <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 400, color: '#888', borderBottom: '2.5px solid transparent', whiteSpace: 'nowrap', marginBottom: -1 }}>🟢 연재중</div>
+                <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 400, color: '#888', borderBottom: '2.5px solid transparent', whiteSpace: 'nowrap', marginBottom: -1 }}>
+                  🟢 연재중
+                </div>
               </a>
               <a href="/ended" style={{ textDecoration: 'none' }}>
-                <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 700, color: '#555', borderBottom: '2.5px solid #555', whiteSpace: 'nowrap', marginBottom: -1 }}>✅ 완결</div>
+                <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 700, color: '#555', borderBottom: '2.5px solid #555', whiteSpace: 'nowrap', marginBottom: -1 }}>
+                  ✅ 완결
+                </div>
               </a>
             </div>
 
@@ -122,24 +130,27 @@ export default function EndedPage() {
 
         {/* 그리드 */}
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 16px 40px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
-            <div style={{ fontSize: 13, color: '#888' }}>
-              {q ? <><span style={{ color: '#111', fontWeight: 600 }}>"{q}"</span> 검색 결과 </> : '완결 '}
-              <span style={{ color: '#111', fontWeight: 700 }}>{filtered.length.toLocaleString()}</span>개 작품
-            </div>
+          <div style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>
+            {q ? <><span style={{ color: '#111', fontWeight: 600 }}>"{q}"</span> 검색 결과 </> : '완결 '}
+            <span style={{ color: '#111', fontWeight: 700 }}>{filtered.length.toLocaleString()}</span>개 작품
           </div>
 
           {loading ? <LoadingSpinner /> : filtered.length === 0 ? <EmptyState /> : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px 14px' }}>
               {filtered.map(w => (
-                <WorkCard key={w.id} work={w} onClick={() => setSelWork(w)} userId={userId} onFavChange={() => setFavKey(k => k + 1)} />
+                <WorkCard key={w.id} work={w} onClick={() => handleWorkClick(w)}
+                  userId={userId} onFavChange={() => setRefreshKey(k => k + 1)} />
               ))}
             </div>
           )}
         </div>
       </div>
 
-      {selWork && <WorkSheet work={selWork} onClose={() => { setSelWork(null); setFavKey(k => k + 1) }} userId={userId} onFavChange={() => setFavKey(k => k + 1)} />}
+      {selWork && (
+        <WorkSheet work={selWork} userId={userId}
+          onClose={() => { setSelWork(null); setRefreshKey(k => k + 1) }}
+          onFavChange={() => setRefreshKey(k => k + 1)} />
+      )}
     </>
   )
 }
