@@ -7,11 +7,19 @@ export default function EndedPage() {
   const [works, setWorks]     = useState<Work[]>([])
   const [loading, setLoading] = useState(true)
   const [selWork, setSelWork] = useState<Work | null>(null)
+  const [userId, setUserId]   = useState<string | null>(null)
+  const [favKey, setFavKey]   = useState(0)
   const [q, setQ]             = useState('')
   const [selPlat, setSelPlat] = useState('all')
   const [selGenre, setSelGenre] = useState('all')
+  const [sortBy, setSortBy]   = useState<'title' | 'platform' | 'genre'>('title')
 
-  useEffect(() => { fetchWorks() }, [])
+  useEffect(() => {
+    fetchWorks()
+    supabase.auth.getSession().then(({ data: { session } }) => setUserId(session?.user?.id || null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUserId(session?.user?.id || null))
+    return () => subscription.unsubscribe()
+  }, [])
 
   async function fetchWorks() {
     setLoading(true)
@@ -19,10 +27,7 @@ export default function EndedPage() {
     let from = 0
     while (true) {
       const { data, error } = await supabase
-        .from('works').select('*')
-        .eq('is_ended', true)
-        .order('title')
-        .range(from, from + 999)
+        .from('works').select('*').eq('is_ended', true).order('title').range(from, from + 999)
       if (error || !data || data.length === 0) break
       all.push(...(data as Work[]))
       if (data.length < 1000) break
@@ -42,19 +47,26 @@ export default function EndedPage() {
     return ['all', ...Array.from(set).sort()]
   }, [works])
 
-  const filtered = useMemo(() => works.filter(w => {
-    if (selPlat !== 'all' && w.platform !== selPlat) return false
-    if (selGenre !== 'all' && (w.genre || '기타') !== selGenre) return false
-    if (q && !w.title.includes(q) && !w.platform.includes(q) && !(w.genre || '').includes(q)) return false
-    return true
-  }), [works, selPlat, selGenre, q])
+  const filtered = useMemo(() => {
+    let list = works.filter(w => {
+      if (selPlat !== 'all' && w.platform !== selPlat) return false
+      if (selGenre !== 'all' && (w.genre || '기타') !== selGenre) return false
+      if (q && !w.title.includes(q) && !w.platform.includes(q) && !(w.genre || '').includes(q)) return false
+      return true
+    })
+    list = [...list].sort((a, b) => {
+      if (sortBy === 'platform') return a.platform.localeCompare(b.platform)
+      if (sortBy === 'genre')    return (a.genre || '').localeCompare(b.genre || '')
+      return a.title.localeCompare(b.title)
+    })
+    return list
+  }, [works, selPlat, selGenre, q, sortBy])
 
   return (
     <>
       <Head><title>웹툰허브 — 완결 웹툰</title></Head>
       <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", background: '#f8f8f8', minHeight: '100vh' }}>
 
-        {/* 헤더 */}
         <SiteHeader q={q} setQ={setQ} />
 
         {/* 탭 + 필터 */}
@@ -71,8 +83,8 @@ export default function EndedPage() {
               </a>
             </div>
 
-            {/* 플랫폼 칩 */}
-            <div style={{ display: 'flex', gap: 6, padding: '8px 0 4px', overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {/* 플랫폼 칩 + 정렬 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0 4px', overflowX: 'auto', scrollbarWidth: 'none' }}>
               {platforms.map(p => {
                 const active = selPlat === p
                 const col = p === 'all' ? '#111' : getPlatColor(p)
@@ -83,6 +95,14 @@ export default function EndedPage() {
                   </button>
                 )
               })}
+              <div style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+                  style={{ fontSize: 12, padding: '5px 10px', borderRadius: 8, border: '1.5px solid #e0e0e0', background: '#fff', color: '#555', cursor: 'pointer', fontFamily: 'inherit', outline: 'none' }}>
+                  <option value="title">가나다순</option>
+                  <option value="platform">플랫폼순</option>
+                  <option value="genre">장르순</option>
+                </select>
+              </div>
             </div>
 
             {/* 장르 칩 */}
@@ -111,13 +131,15 @@ export default function EndedPage() {
 
           {loading ? <LoadingSpinner /> : filtered.length === 0 ? <EmptyState /> : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px 14px' }}>
-              {filtered.map(w => <WorkCard key={w.id} work={w} onClick={() => setSelWork(w)} />)}
+              {filtered.map(w => (
+                <WorkCard key={w.id} work={w} onClick={() => setSelWork(w)} userId={userId} onFavChange={() => setFavKey(k => k + 1)} />
+              ))}
             </div>
           )}
         </div>
       </div>
 
-      {selWork && <WorkSheet work={selWork} onClose={() => setSelWork(null)} />}
+      {selWork && <WorkSheet work={selWork} onClose={() => { setSelWork(null); setFavKey(k => k + 1) }} userId={userId} onFavChange={() => setFavKey(k => k + 1)} />}
     </>
   )
 }
