@@ -3,6 +3,7 @@ import Head from 'next/head'
 import { supabase, Work, PLATFORM_COLORS } from '@/lib/supabase'
 
 const DAYS = ['전체', '월', '화', '수', '목', '금', '토', '일']
+const DAY_MAP = ['일', '월', '화', '수', '목', '금', '토']  // 
 
 export function getPlatColor(p: string) { return PLATFORM_COLORS[p] || '#888' }
 export function getPlatIcon(p: string) {
@@ -15,6 +16,7 @@ export function getPlatIcon(p: string) {
 }
 
 export default function Home() {
+  const today = DAY_MAP[new Date().getDay()]
   const [works, setWorks]     = useState<Work[]>([])
   const [loading, setLoading] = useState(true)
   const [selWork, setSelWork] = useState<Work | null>(null)
