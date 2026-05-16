@@ -21,21 +21,33 @@ export default function EndedPage() {
     return () => subscription.unsubscribe()
   }, [])
 
-  async function fetchWorks() {
-    setLoading(true)
-    const all: Work[] = []
-    let from = 0
-    while (true) {
-      const { data, error } = await supabase
-        .from('works').select('*').eq('is_ended', true).order('title').range(from, from + 999)
-      if (error || !data || data.length === 0) break
-      all.push(...(data as Work[]))
-      if (data.length < 1000) break
-      from += 1000
+    async function fetchWorks() {
+        setLoading(true)
+        try {
+            const all: Work[] = []
+            let from = 0
+            let hasMore = true
+            while (hasMore) {
+                const { data, error } = await supabase
+                    .from('works').select('*').eq('is_ended', true).order('title').range(from, from + 999)
+                if (error || !data || data.length === 0) {
+                    hasMore = false
+                    break
+                }
+                all.push(...(data as Work[]))
+                if (data.length < 1000) {
+                    hasMore = false
+                } else {
+                    from += 1000
+                }
+            }
+            setWorks(all)
+        } catch (e) {
+            console.error('fetchWorks error:', e)
+        } finally {
+            setLoading(false)
+        }
     }
-    setWorks(all)
-    setLoading(false)
-  }
 
   const platforms = useMemo(() => {
     const set = new Set(works.map(w => w.platform))
