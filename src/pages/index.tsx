@@ -173,7 +173,7 @@ export default function Home() {
       <Head><title>웹툰허브 — 연재중 웹툰</title></Head>
       <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", background: '#f8f8f8', minHeight: '100vh' }}>
 
-        <Header q={q} setQ={setQ} />
+       {!loading && <Header q={q} setQ={setQ} />}
 
         <div style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 60, zIndex: 90 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
