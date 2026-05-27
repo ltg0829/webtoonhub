@@ -1,4 +1,4 @@
-gggimport { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Head from 'next/head'
 import { supabase, Work } from '@/lib/supabase'
 import Header from '@/components/Header'
