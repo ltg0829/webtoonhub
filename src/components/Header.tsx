@@ -11,17 +11,29 @@ function AuthModal({ onClose }: { onClose: () => void }) {
   const [checkingId, setCheckingId] = useState(false)
   const [idAvail, setIdAvail]     = useState<boolean | null>(null)
 
-  useEffect(() => {
-    if (mode !== 'signup' || !username) { setIdAvail(null); return }
-    if (username.length < 2) { setIdAvail(null); return }
+useEffect(() => {
+    setIdAvail(null)
+    if (mode !== 'signup' || username.length < 2) return
+
     const timer = setTimeout(async () => {
-      setCheckingId(true)
-      const { data } = await supabase.rpc('check_username_available', { uname: username })
-      setIdAvail(data === true)
-      setCheckingId(false)
-    }, 500)
+        try {
+            setCheckingId(true)
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('username', username)
+                .maybeSingle()
+            if (error) throw error
+            setIdAvail(!data) // data가 null이면 사용가능
+        } catch {
+            setIdAvail(null)
+        } finally {
+            setCheckingId(false)
+        }
+    }, 600)
+
     return () => clearTimeout(timer)
-  }, [username, mode])
+}, [username, mode])
 
   function reset() { setUsername(''); setPw(''); setPw2(''); setError(''); setIdAvail(null) }
 

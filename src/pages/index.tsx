@@ -125,7 +125,29 @@ export default function Home() {
   const [selDay, setSelDay]   = useState(today)
   const [sortBy, setSortBy]   = useState<'title' | 'platform' | 'genre'>('title')
 
-  useEffect(() => { fetchWorks() }, [])
+useEffect(() => {
+    setIdAvail(null)
+    if (mode !== 'signup' || username.length < 2) return
+
+    const timer = setTimeout(async () => {
+        try {
+            setCheckingId(true)
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('username', username)
+                .maybeSingle()
+            if (error) throw error
+            setIdAvail(!data) // data가 null이면 사용가능
+        } catch {
+            setIdAvail(null)
+        } finally {
+            setCheckingId(false)
+        }
+    }, 600)
+
+    return () => clearTimeout(timer)
+}, [username, mode])
 
   async function fetchWorks() {
     setLoading(true)
