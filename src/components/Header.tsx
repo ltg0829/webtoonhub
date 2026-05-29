@@ -13,24 +13,36 @@ function AuthModal({ onClose }: { onClose: () => void }) {
 
 useEffect(() => {
     setIdAvail(null)
+    setCheckingId(false)
+
     if (mode !== 'signup' || username.length < 2) return
 
+    // 유효성 검사 먼저
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return
+
+    let cancelled = false  // ← 핵심: 취소 플래그
+
     const timer = setTimeout(async () => {
+        setCheckingId(true)
         try {
-            setCheckingId(true)
-            const { data, error } = await supabase
+            const { data } = await supabase
                 .from('profiles')
                 .select('id')
                 .eq('username', username)
                 .maybeSingle()
-            if (error) throw error
-            setIdAvail(!data) // data가 null이면 사용가능
+            if (!cancelled) setIdAvail(!data)
         } catch {
-            setIdAvail(null)
+            if (!cancelled) setIdAvail(null)
         } finally {
-            setCheckingId(false)
+            if (!cancelled) setCheckingId(false)
         }
     }, 600)
+
+    return () => {
+        cancelled = true   // ← 언마운트/재실행 시 이전 요청 결과 무시
+        clearTimeout(timer)
+    }
+}, [username, mode])  // ← checkingId, idAvail 는 의존성에서 제외
 
     return () => clearTimeout(timer)
 }, [username, mode])
