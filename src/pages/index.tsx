@@ -125,29 +125,7 @@ export default function Home() {
   const [selDay, setSelDay]   = useState(today)
   const [sortBy, setSortBy]   = useState<'title' | 'platform' | 'genre'>('title')
 
-useEffect(() => {
-    setIdAvail(null)
-    if (mode !== 'signup' || username.length < 2) return
-
-    const timer = setTimeout(async () => {
-        try {
-            setCheckingId(true)
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('username', username)
-                .maybeSingle()
-            if (error) throw error
-            setIdAvail(!data) // data가 null이면 사용가능
-        } catch {
-            setIdAvail(null)
-        } finally {
-            setCheckingId(false)
-        }
-    }, 600)
-
-    return () => clearTimeout(timer)
-}, [username, mode])
+  useEffect(() => { fetchWorks() }, [])
 
   async function fetchWorks() {
     setLoading(true)
@@ -195,12 +173,11 @@ useEffect(() => {
       <Head><title>웹툰허브 — 연재중 웹툰</title></Head>
       <div style={{ fontFamily: "system-ui, -apple-system, sans-serif", background: '#f8f8f8', minHeight: '100vh' }}>
 
-       {!loading && <Header q={q} setQ={setQ} />}
+        <Header q={q} setQ={setQ} />
 
         <div style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 60, zIndex: 90 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
 
-            {/* 연재 / 완결 탭 + 요일 */}
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', overflowX: 'auto', scrollbarWidth: 'none' }}>
               <a href="/" style={{ textDecoration: 'none' }}>
                 <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 700, color: '#03c75a', borderBottom: '2.5px solid #03c75a', whiteSpace: 'nowrap', marginBottom: -1 }}>🟢 연재중</div>
@@ -220,7 +197,6 @@ useEffect(() => {
               })}
             </div>
 
-            {/* 플랫폼 칩 + 정렬 */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 0', overflowX: 'auto', scrollbarWidth: 'none' }}>
               {platforms.map(p => {
                 const active = selPlat === p
@@ -244,7 +220,6 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* 그리드 */}
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '16px 16px 40px' }}>
           <div style={{ fontSize: 13, color: '#888', marginBottom: 14 }}>
             {q ? <><span style={{ color: '#111', fontWeight: 600 }}>"{q}"</span> 검색 결과 </> : '연재중 '}
