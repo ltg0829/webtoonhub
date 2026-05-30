@@ -2,65 +2,64 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 function AuthModal({ onClose }: { onClose: () => void }) {
-  const [mode, setMode]           = useState<'login' | 'signup'>('login')
-  const [username, setUsername]   = useState('')
-  const [pw, setPw]               = useState('')
-  const [pw2, setPw2]             = useState('')
-  const [error, setError]         = useState('')
-  const [loading, setLoading]     = useState(false)
+  const [mode, setMode]             = useState<'login' | 'signup'>('login')
+  const [username, setUsername]     = useState('')
+  const [pw, setPw]                 = useState('')
+  const [pw2, setPw2]               = useState('')
+  const [error, setError]           = useState('')
+  const [loading, setLoading]       = useState(false)
   const [checkingId, setCheckingId] = useState(false)
-  const [idAvail, setIdAvail]     = useState<boolean | null>(null)
+  const [idAvail, setIdAvail]       = useState<boolean | null>(null)
 
-useEffect(() => {
+  useEffect(() => {
     setIdAvail(null)
     setCheckingId(false)
 
     if (mode !== 'signup' || username.length < 2) return
-
-    // 유효성 검사 먼저
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return
 
-    let cancelled = false  // ← 핵심: 취소 플래그
+    let cancelled = false
 
     const timer = setTimeout(async () => {
-        setCheckingId(true)
-        try {
-            const { data } = await supabase
-                .from('profiles')
-                .select('id')
-                .eq('username', username)
-                .maybeSingle()
-            if (!cancelled) setIdAvail(!data)
-        } catch {
-            if (!cancelled) setIdAvail(null)
-        } finally {
-            if (!cancelled) setCheckingId(false)
-        }
+      if (cancelled) return
+      setCheckingId(true)
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('username', username)
+          .maybeSingle()
+        if (!cancelled) setIdAvail(!data)
+      } catch {
+        if (!cancelled) setIdAvail(null)
+      } finally {
+        if (!cancelled) setCheckingId(false)
+      }
     }, 600)
 
     return () => {
-        cancelled = true   // ← 언마운트/재실행 시 이전 요청 결과 무시
-        clearTimeout(timer)
+      cancelled = true
+      clearTimeout(timer)
     }
-}, [username, mode])  // ← checkingId, idAvail 는 의존성에서 제외
+  }, [username, mode])
 
-    return () => clearTimeout(timer)
-}, [username, mode])
-
-  function reset() { setUsername(''); setPw(''); setPw2(''); setError(''); setIdAvail(null) }
+  function reset() {
+    setUsername(''); setPw(''); setPw2('')
+    setError(''); setIdAvail(null); setCheckingId(false)
+  }
 
   function validateUsername(id: string): string | null {
-    if (id.length < 2) return '아이디는 2자 이상이어야 합니다'
+    if (id.length < 2)  return '아이디는 2자 이상이어야 합니다'
     if (id.length > 20) return '아이디는 20자 이하여야 합니다'
     if (!/^[a-zA-Z0-9_]+$/.test(id)) return '아이디는 영문, 숫자, _ 만 사용 가능합니다'
     return null
   }
 
   function validatePassword(pw: string): string | null {
-    if (pw.length < 6) return '비밀번호는 6자 이상이어야 합니다'
+    if (pw.length < 6)  return '비밀번호는 6자 이상이어야 합니다'
     if (pw.length > 12) return '비밀번호는 12자 이하여야 합니다'
     if (!/[a-zA-Z]/.test(pw)) return '비밀번호는 영문을 포함해야 합니다'
-    if (!/[0-9]/.test(pw)) return '비밀번호는 숫자를 포함해야 합니다'
+    if (!/[0-9]/.test(pw))    return '비밀번호는 숫자를 포함해야 합니다'
     return null
   }
 
@@ -79,8 +78,9 @@ useEffect(() => {
       const pwErr = validatePassword(pw)
       if (pwErr) { setError(pwErr); return }
       if (pw !== pw2) { setError('비밀번호가 일치하지 않습니다'); return }
+      if (checkingId) { setError('아이디 중복 확인 중입니다. 잠시 후 다시 시도해주세요'); return }
       if (idAvail === false) { setError('이미 사용 중인 아이디입니다'); return }
-      if (idAvail === null) { setError('아이디 중복 확인 중입니다. 잠시 후 다시 시도해주세요'); return }
+      if (idAvail === null)  { setError('아이디 중복 확인이 필요합니다'); return }
 
       const fakeEmail = `${username}@webtoonhub.app`
       setLoading(true)
@@ -108,6 +108,7 @@ useEffect(() => {
       <div style={{ background: '#fff', borderRadius: 16, padding: '28px 24px', width: 360, boxShadow: '0 8px 40px rgba(0,0,0,.15)', animation: 'modalIn .2s ease' }}>
         <style>{`@keyframes modalIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}`}</style>
 
+        {/* 탭 */}
         <div style={{ display: 'flex', marginBottom: 20, borderBottom: '1.5px solid #f0f0f0' }}>
           {(['login', 'signup'] as const).map(m => (
             <button key={m} onClick={() => { setMode(m); reset() }}
@@ -117,25 +118,28 @@ useEffect(() => {
           ))}
         </div>
 
+        {/* 아이디 입력 */}
         <div style={{ position: 'relative', marginBottom: 8 }}>
           <input
-            style={{ ...inp, marginBottom: 0, paddingRight: mode === 'signup' ? 90 : 14, borderColor: mode === 'signup' && username ? (idAvail === true ? '#03c75a' : idAvail === false ? '#e24b4a' : '#e8e8e8') : '#e8e8e8' }}
+            style={{ ...inp, marginBottom: 0, paddingRight: mode === 'signup' ? 90 : 14, borderColor: mode === 'signup' && username.length >= 2 ? (idAvail === true ? '#03c75a' : idAvail === false ? '#e24b4a' : '#e8e8e8') : '#e8e8e8' }}
             placeholder={mode === 'login' ? '아이디' : '아이디 (영문, 숫자, _)'}
             value={username} onChange={e => setUsername(e.target.value)}
             maxLength={20} autoComplete="username" />
-          {mode === 'signup' && username && (
+          {mode === 'signup' && username.length >= 2 && (
             <div style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', fontSize: 11, fontWeight: 600, color: checkingId ? '#aaa' : idAvail === true ? '#03c75a' : idAvail === false ? '#e24b4a' : '#aaa' }}>
               {checkingId ? '확인중...' : idAvail === true ? '✓ 사용가능' : idAvail === false ? '✗ 중복' : ''}
             </div>
           )}
         </div>
 
+        {/* 비밀번호 */}
         <input style={inp} type="password"
           placeholder={mode === 'login' ? '비밀번호' : '비밀번호 (영문+숫자 6~12자)'}
           value={pw} onChange={e => setPw(e.target.value)}
           maxLength={12} autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           onKeyDown={e => e.key === 'Enter' && mode === 'login' && submit()} />
 
+        {/* 비밀번호 확인 + 조건 (회원가입) */}
         {mode === 'signup' && (
           <>
             <input style={{ ...inp, borderColor: pw2 && pw !== pw2 ? '#e24b4a' : '#e8e8e8' }}
@@ -144,17 +148,21 @@ useEffect(() => {
               maxLength={12} autoComplete="new-password"
               onKeyDown={e => e.key === 'Enter' && submit()} />
             <div style={{ fontSize: 11, color: '#bbb', marginBottom: 8, lineHeight: 1.8 }}>
-              <span style={{ color: pw.length >= 6 ? '#03c75a' : '#bbb' }}>✓ 6~12자</span>{'  '}
+              <span style={{ color: pw.length >= 6 && pw.length <= 12 ? '#03c75a' : '#bbb' }}>✓ 6~12자</span>{'  '}
               <span style={{ color: /[a-zA-Z]/.test(pw) ? '#03c75a' : '#bbb' }}>✓ 영문</span>{'  '}
               <span style={{ color: /[0-9]/.test(pw) ? '#03c75a' : '#bbb' }}>✓ 숫자</span>
             </div>
           </>
         )}
 
+        {/* 에러 */}
         {error && (
-          <div style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10, padding: '8px 12px', background: '#fff5f5', borderRadius: 8 }}>{error}</div>
+          <div style={{ fontSize: 12, color: '#e24b4a', marginBottom: 10, padding: '8px 12px', background: '#fff5f5', borderRadius: 8 }}>
+            {error}
+          </div>
         )}
 
+        {/* 제출 버튼 */}
         <button onClick={submit} disabled={loading}
           style={{ width: '100%', height: 46, borderRadius: 10, background: loading ? '#aaa' : '#03c75a', color: '#fff', border: 'none', fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer', fontFamily: 'inherit', marginBottom: 10 }}>
           {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
@@ -173,13 +181,11 @@ export default function Header({ q, setQ }: { q: string; setQ: (v: string) => vo
   const [showAuth, setShowAuth] = useState(false)
 
   useEffect(() => {
-    // 세션 확인
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session?.user) return
       const { data } = await supabase.from('profiles').select('username').eq('id', session.user.id).single()
       if (data) setUsername(data.username)
     })
-    // 상태 변화 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_e, session) => {
       if (session?.user) {
         const { data } = await supabase.from('profiles').select('username').eq('id', session.user.id).single()
