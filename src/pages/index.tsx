@@ -177,7 +177,6 @@ export default function Home() {
 
         <div style={{ background: '#fff', borderBottom: '1px solid #efefef', position: 'sticky', top: 60, zIndex: 90 }}>
           <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 16px' }}>
-
             <div style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid #f0f0f0', overflowX: 'auto', scrollbarWidth: 'none' }}>
               <a href="/" style={{ textDecoration: 'none' }}>
                 <div style={{ padding: '13px 20px', fontSize: 14, fontWeight: 700, color: '#03c75a', borderBottom: '2.5px solid #03c75a', whiteSpace: 'nowrap', marginBottom: -1 }}>🟢 연재중</div>
@@ -236,4 +235,9 @@ export default function Home() {
       {selWork && <WorkSheet work={selWork} onClose={() => setSelWork(null)} />}
     </>
   )
+}
+
+// 이 함수가 있어야 Next.js가 정적 페이지로 처리하지 않음
+export async function getServerSideProps() {
+  return { props: {} }
 }

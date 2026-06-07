@@ -136,3 +136,7 @@ export default function EndedPage() {
     </>
   )
 }
+// 이 함수가 있어야 Next.js가 정적 페이지로 처리하지 않음
+export async function getServerSideProps() {
+    return { props: {} }
+}
